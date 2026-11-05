@@ -1,0 +1,7 @@
+.git
+runs
+library/references
+deploy
+__pycache__
+*.log
+.env

@@ -4,7 +4,7 @@ Beğendiğin bir reklam filmini seç ya da linkini yapıştır, brief'ini yaz: a
 
 *Pick an ad you like or paste its link, write a brief, and get your own MP4 with the same edit and rhythm. Claude plans the film and writes each scene as code; HyperFrames renders the HTML to video. The UI is in Turkish.*
 
-> Bu bir POC'dir. Kimlik doğrulama yoktur ve sunucu kullanıcının verdiği linkleri indirir; internete açık çalıştırmayın.
+> Bu bir POC'dir. Müşterinin AWS hesabına kendi alan adıyla kurulum için [deploy/README.md](deploy/README.md) dosyasına bakın. Yerelde çalıştırırken şifre yoktur; `app.py`'yi şifresiz internete açmayın.
 
 ## Neler yapıyor
 
@@ -79,26 +79,19 @@ Yerel test modelleri (`sub-sonnet-5.5`, `sub-haiku-5.5`) oturum açılmış `cla
 | `library/blocks/endcard.html` | Markalı kapanış kartı |
 | `library/showcase.json` | Referans galerisi (yalnızca linkler) |
 
-`runs/` ve `library/references/` çalışırken oluşur ve repoya dahil değildir.
+`runs/` ve `library/references/` çalışırken oluşur ve repoya dahil değildir. `Dockerfile` ve `deploy/` AWS kurulumunu içerir.
 
 ## Bilinen sınırlar
 
 - Yeni videolarda ses efekti yoktur; müzik yalnızca HeyGen girişi yapılmışsa eklenir, aksi halde video sessizdir.
 - Bir film en fazla 6 sahne ve kapanış kartıdır, bu yüzden çok hızlı kesimli referanslar sadeleşir.
-- Kullanıcı hesabı, marka kiti, onay akışı ve kota yoktur; eklenen referanslar herkese görünür ve arayüzden silinemez.
+- Kullanıcı hesabı yoktur, kurulum başına tek ortak şifre vardır. Marka kiti, onay akışı ve kota da yoktur; eklenen referanslar herkese görünür ve arayüzden silinemez.
 - Instagram ve X bazı videolar için giriş isteyebilir; bu durumda dosya yüklemek gerekir.
 - YouTube, TikTok ve Instagram'dan indirme uçtan uca denenmedi; X ve doğrudan dosya linkleri denendi.
 
-## AWS'e taşıma
+## AWS kurulumu
 
-| Şu an | AWS'te |
-| --- | --- |
-| Flask arayüzü | CloudFront + S3, API Gateway |
-| Tek işçili kuyruk | SQS + Step Functions |
-| Bedrock çağrıları | Lambda → Bedrock Runtime |
-| `hyperframes check/render` | ECS Fargate (Node + Chrome, 4 vCPU / 8 GB) |
-| `runs/`, `library/references/` | S3 + DynamoDB |
-| Yok | Cognito, CloudWatch, Bedrock Guardrails |
+Her müşteri kendi AWS hesabında kendi alan adıyla çalışır: alan adı → CloudFront → tek EC2 sunucu (Docker). Bedrock erişimi sunucunun IAM rolünden gelir. Sunucu boşta kendini kapatır, ilk ziyaretçi onu uyandırır; böylece aylık sabit maliyet yaklaşık $15 olur (ayda 40 saat kullanımla, Bedrock hariç). Adımlar [deploy/README.md](deploy/README.md) dosyasındadır. Bu kurulum henüz gerçek bir AWS hesabında uçtan uca denenmedi.
 
 ## Telif ve lisans
 

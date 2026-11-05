@@ -18,10 +18,10 @@ import uuid
 from math import gcd
 from urllib.parse import urlparse
 
-from pipeline import LIB, fenced, sh
+from pipeline import DATA, LIB, fenced, sh
 
 SHOWCASE = {r["id"]: r for r in json.loads((LIB / "showcase.json").read_text())}
-CACHE = LIB / "references"
+CACHE = DATA / "library" / "references"
 MAX_FRAMES = 12
 MAX_SECONDS = 300          # a reference is an ad, not a long video; also bounds download and measuring
 MAX_BYTES = 300 * 1024 * 1024
@@ -141,11 +141,16 @@ def add_link(url):
         raise
 
 
-def add_upload(file):
+def stage_upload(file):
+    """Save the request's file; `add_upload` then processes it outside the request."""
     d = _new_dir()
+    file.save(d / "upload")
+    return d, file.filename or ""
+
+
+def add_upload(d, filename):
     raw = d / "upload"
     try:
-        file.save(raw)
         # Re-encoded so every browser plays it; also rejects anything that is not a video.
         res = sh("ffmpeg", "-loglevel", "error", "-y", "-i", str(raw), "-t", str(MAX_SECONDS + 1),
                  "-vf", "scale=-2:'min(720,ih)'", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
@@ -153,7 +158,7 @@ def add_upload(file):
         raw.unlink()
         if res.returncode:
             raise RefError("Bu dosya video olarak okunamadı.")
-        return finish(d, re.sub(r"\.\w+$", "", file.filename or ""))
+        return finish(d, re.sub(r"\.\w+$", "", filename))
     except Exception:
         shutil.rmtree(d, ignore_errors=True)
         raise
@@ -239,7 +244,8 @@ def frames_content(spec):
     """The reference's frames for the planner, each labelled with its shot number."""
     blocks = [{"type": "text", "text": "The reference film's frames (one per shot):"}]
     for name in spec["frames"]:
-        blocks += [{"type": "text", "text": f"Shot {int(re.search(r'\d+', name).group())}"}, _image(spec["id"], name)]
+        shot = int(re.search(r"\d+", name).group())
+        blocks += [{"type": "text", "text": f"Shot {shot}"}, _image(spec["id"], name)]
     return blocks
 
 

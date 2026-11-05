@@ -1,0 +1,348 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Ad Studio for one customer account. Their domain, CloudFront, one EC2 server that sleeps when idle, Bedrock through the instance role.
+
+Parameters:
+  DomainName:
+    Type: String
+    Description: The customer's domain, e.g. studio.brand.com
+  CertificateArn:
+    Type: String
+    Description: Issued ACM certificate for the domain, in us-east-1
+  CloudFrontPrefixList:
+    Type: String
+    Description: Managed prefix list com.amazonaws.global.cloudfront.origin-facing of this region
+  InstanceType:
+    Type: String
+    Default: c7i.xlarge
+  DiskSizeGb:
+    Type: Number
+    Default: 50
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id
+
+Conditions:
+  IsUsEast1: !Equals [!Ref AWS::Region, us-east-1]
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.40.0.0/24
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{Key: Name, Value: !Ref AWS::StackName}]
+  Gateway:
+    Type: AWS::EC2::InternetGateway
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref Gateway
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.40.0.0/25
+      AvailabilityZone: !Select [0, !GetAZs ""]
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Gateway
+  SubnetRoutes:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Subnet
+      RouteTableId: !Ref RouteTable
+
+  # Only CloudFront reaches the app. There is no SSH: admin access goes through SSM.
+  ServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: App port from CloudFront only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourcePrefixListId: !Ref CloudFrontPrefixList
+
+  AppPassword:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Login password of the app
+      GenerateSecretString: {PasswordLength: 20, ExcludePunctuation: true}
+  OriginSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Header CloudFront sends so the server can refuse anything else
+      GenerateSecretString: {PasswordLength: 40, ExcludePunctuation: true}
+
+  ReleaseBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  ServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ec2.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: app
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+                Resource: "*"
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "${ReleaseBucket.Arn}/*"
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: [!Ref AppPassword, !Ref OriginSecret]
+  ServerProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref ServerRole]
+
+  Server:
+    Type: AWS::EC2::Instance
+    DependsOn: DefaultRoute
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      InstanceInitiatedShutdownBehavior: stop
+      IamInstanceProfile: !Ref ServerProfile
+      # Hop limit 2: the app runs in a container and reaches the instance role through one more hop.
+      MetadataOptions: {HttpTokens: required, HttpPutResponseHopLimit: 2}
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          SubnetId: !Ref Subnet
+          AssociatePublicIpAddress: true
+          GroupSet: [!Ref ServerSecurityGroup]
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: !Ref DiskSizeGb
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: false
+      Tags: [{Key: Name, Value: !Ref AWS::StackName}]
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -euxo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y docker.io
+          snap install aws-cli --classic
+          systemctl enable --now docker
+          mkdir -p /data
+          chown 1000:1000 /data
+
+          # Sleep: stop the server once the app reports it idle. A failed check (app starting or
+          # being rebuilt) never stops it, and a deploy holds it awake through /var/lib/no-sleep.
+          cat > /usr/local/bin/sleep-check <<'SCRIPT'
+          #!/bin/sh
+          [ -n "$(find /var/lib/no-sleep -mmin -60 2>/dev/null)" ] && exit 0
+          [ "$(curl -fs -m 5 http://localhost:8080/healthz)" = "sleep" ] && shutdown -h now
+          exit 0
+          SCRIPT
+          chmod +x /usr/local/bin/sleep-check
+          cat > /etc/systemd/system/sleep-check.service <<'UNIT'
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/bin/sleep-check
+          UNIT
+          cat > /etc/systemd/system/sleep-check.timer <<'UNIT'
+          [Timer]
+          OnBootSec=10min
+          OnUnitActiveSec=5min
+          [Install]
+          WantedBy=timers.target
+          UNIT
+          systemctl daemon-reload
+          systemctl enable --now sleep-check.timer
+          touch /var/lib/server-ready
+
+  Address:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttachment
+    Properties:
+      Domain: vpc
+  AddressAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt Address.AllocationId
+      InstanceId: !Ref Server
+
+  # The page CloudFront shows while the server sleeps; it also starts the server.
+  WakeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: start
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ec2:StartInstances
+                Resource: !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Server}"
+  WakeFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 10
+      Role: !GetAtt WakeRole.Arn
+      Environment:
+        Variables:
+          INSTANCE_ID: !Ref Server
+          ORIGIN_SECRET: !Sub "{{resolve:secretsmanager:${OriginSecret}}}"
+      Code:
+        ZipFile: |
+          import hmac
+          import os
+
+          import boto3
+          from botocore.exceptions import ClientError
+
+          PAGE = """<!doctype html><html lang="tr"><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1"><title>Reklam Stüdyosu</title>
+          <style>body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;text-align:center;
+          background:#111110;color:#f1efe9;font:16px/1.5 system-ui,sans-serif}h1{font-size:22px;margin:0 0 6px}
+          p{margin:0;color:#9a968d}</style><main><h1>Uygulama açılıyor</h1>
+          <p>Bir iki dakika sürebilir, sayfa kendiliğinden yenilenecek.</p></main>
+          <script>
+          const wake=()=>fetch('/_wake/start',{cache:'no-store'}).catch(()=>{});
+          const check=()=>fetch('/healthz',{cache:'no-store'}).then(r=>{if(r.ok)location.reload()}).catch(()=>{});
+          wake();setInterval(wake,20000);setInterval(check,4000);
+          </script></html>"""
+
+
+          def handler(event, context):
+              headers = event.get("headers") or {}
+              if not hmac.compare_digest(headers.get("x-origin-verify", ""), os.environ["ORIGIN_SECRET"]):
+                  return {"statusCode": 403, "body": "forbidden"}
+              if event.get("rawPath") == "/_wake/start":
+                  try:
+                      boto3.client("ec2").start_instances(InstanceIds=[os.environ["INSTANCE_ID"]])
+                  except ClientError as e:
+                      if e.response["Error"]["Code"] != "IncorrectInstanceState":   # still stopping
+                          raise
+                  return {"statusCode": 200, "body": "ok"}
+              return {"statusCode": 200, "headers": {"Content-Type": "text/html; charset=utf-8"}, "body": PAGE}
+  WakeUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt WakeFunction.Arn
+      AuthType: NONE
+  WakeUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WakeFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+  WakeInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WakeFunction
+      Action: lambda:InvokeFunction
+      Principal: "*"
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: AddressAssociation
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Ref DomainName
+        Aliases: [!Ref DomainName]
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: server
+            # CloudFront needs a name, not an IP: the public DNS name of the fixed address.
+            DomainName: !Sub
+              - "ec2-${Dashed}.${Zone}"
+              - Dashed: !Join ["-", !Split [".", !Ref Address]]
+                Zone: !If [IsUsEast1, compute-1.amazonaws.com, !Sub "${AWS::Region}.compute.amazonaws.com"]
+            CustomOriginConfig:
+              HTTPPort: 8080
+              OriginProtocolPolicy: http-only
+              OriginReadTimeout: 60
+            ConnectionTimeout: 3
+            ConnectionAttempts: 2
+            OriginCustomHeaders:
+              - HeaderName: X-Origin-Verify
+                HeaderValue: !Sub "{{resolve:secretsmanager:${OriginSecret}}}"
+          - Id: wake
+            DomainName: !Select [2, !Split ["/", !GetAtt WakeUrl.FunctionUrl]]
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+            OriginCustomHeaders:
+              - HeaderName: X-Origin-Verify
+                HeaderValue: !Sub "{{resolve:secretsmanager:${OriginSecret}}}"
+        # A sleeping server cannot answer: show the wake page, keeping the visitor's address.
+        CustomErrorResponses:
+          - {ErrorCode: 502, ResponseCode: 503, ResponsePagePath: /_wake/page, ErrorCachingMinTTL: 0}
+          - {ErrorCode: 503, ResponseCode: 503, ResponsePagePath: /_wake/page, ErrorCachingMinTTL: 0}
+          - {ErrorCode: 504, ResponseCode: 503, ResponsePagePath: /_wake/page, ErrorCachingMinTTL: 0}
+        CacheBehaviors:
+          - PathPattern: /_wake/*
+            TargetOriginId: wake
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad        # CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac  # AllViewerExceptHostHeader
+        DefaultCacheBehavior:
+          TargetOriginId: server
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad        # CachingDisabled
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3  # AllViewer
+
+Outputs:
+  CloudFrontDomain:
+    Value: !GetAtt Distribution.DomainName
+  InstanceId:
+    Value: !Ref Server
+  ReleaseBucket:
+    Value: !Ref ReleaseBucket
+  AppPasswordArn:
+    Value: !Ref AppPassword
+  OriginSecretArn:
+    Value: !Ref OriginSecret

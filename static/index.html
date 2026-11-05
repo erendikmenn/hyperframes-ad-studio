@@ -227,7 +227,12 @@ const $ = s => document.querySelector(s);
 const view = $('#view');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const usd = (v, d = 2) => '$' + Number(v || 0).toFixed(d);
-const api = p => fetch(p).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+const api = p => fetch(p).then(r => {
+  if (r.status === 401) location.href = '/login';
+  if (r.status === 503) location.reload();   // the server went to sleep: CloudFront shows the wake page
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+});
 const FMT_LABEL = {'16:9': 'Yatay 16:9', '9:16': 'Dikey 9:16', '1:1': 'Kare 1:1'};
 let REFS = null;
 const refs = async () => REFS ??= await api('/api/showcase');
@@ -440,8 +445,13 @@ function referenceView() {
     add.disabled = true; st.className = 'status'; st.textContent = 'Video alınıyor, bu bir dakika sürebilir…';
     try {
       const r = await fetch('/api/references', {method: 'POST', ...init});
-      const body = await r.json().catch(() => ({}));
+      let body = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(body.error || 'Video eklenemedi.');
+      for (const task = body.task; ; await new Promise(ok => setTimeout(ok, 1500))) {
+        body = await api('/api/references/' + task);
+        if (body.status !== 'running') break;
+      }
+      if (body.status === 'error') throw new Error(body.error);
       REFS = null; location.hash = '#/new?ref=' + body.id;
     } catch (e) { st.className = 'status bad'; st.textContent = e.message; add.disabled = false; f.elements.file.value = ''; }
   };
@@ -459,6 +469,7 @@ function referenceView() {
 
 async function submit(body) {
   const r = await fetch('/api/jobs', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  if (r.status === 503) { location.reload(); return; }
   if (!r.ok) { alert('İş eklenemedi: ' + r.status); return; }
   location.hash = '#/queue';
 }

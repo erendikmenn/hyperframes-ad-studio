@@ -39,7 +39,8 @@ from anthropic import AnthropicBedrock
 import pricing
 
 ROOT = Path(__file__).parent
-RUNS = ROOT / "runs"
+DATA = Path(os.environ.get("DATA_DIR", ROOT))   # videos and references live here; a volume on a server
+RUNS = DATA / "runs"
 LIB = ROOT / "library"
 PLANNER_PROMPT = (ROOT / "prompts" / "planner.md").read_text()
 SCENE_PROMPT = (ROOT / "prompts" / "scene.md").read_text()
@@ -73,7 +74,7 @@ FORMATS = {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080)}
 FPS = 30
 MAX_REPAIRS = 2
 PARALLEL = 4            # concurrent Bedrock calls per video (account quota)
-REGION = "us-east-1"
+REGION = os.environ.get("AWS_REGION", "us-east-1")
 FACTCHECK_MODEL = None  # the main model: Haiku 4.5 missed "no credit card" in testing
 
 # Blueprint -> reference composition from the official HyperFrames launch films.

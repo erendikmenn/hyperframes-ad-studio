@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reklam Stüdyosu</title>
+<style>
+  :root { --bg:#f6f5f2; --panel:#fff; --line:#e4e1da; --ink:#141414; --mute:#6b6862; --err:#b91c1c; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111110; --panel:#1a1a19; --line:#2c2b29; --ink:#f1efe9; --mute:#9a968d; --err:#f87171; } }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.5 Inter, system-ui, sans-serif; }
+  form { width:100%; max-width:360px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px; }
+  h1 { margin:0 0 16px; font-size:22px; letter-spacing:-.02em; }
+  label { display:block; font-size:13px; color:var(--mute); margin-bottom:6px; }
+  input { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:inherit; font:inherit; }
+  button { width:100%; margin-top:14px; padding:11px; border:0; border-radius:8px; background:var(--ink); color:var(--bg); font:600 15px Inter, system-ui, sans-serif; cursor:pointer; }
+  p { margin:12px 0 0; font-size:14px; color:var(--err); }
+</style>
+</head>
+<body>
+<form method="post" action="/login">
+  <h1>Reklam Stüdyosu</h1>
+  <label for="password">Şifre</label>
+  <input id="password" name="password" type="password" required autofocus autocomplete="current-password">
+  <button>Giriş yap</button>
+  <p id="err" hidden>Şifre yanlış.</p>
+</form>
+<script>if (location.search.includes('hata')) document.getElementById('err').hidden = false;</script>
+</body>
+</html>

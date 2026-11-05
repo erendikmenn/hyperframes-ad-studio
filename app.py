@@ -2,15 +2,24 @@
 and a job queue that runs the pipeline one video at a time (Bedrock request quota).
 
     python app.py   # http://localhost:8080
+
+On a server: APP_PASSWORD turns on the login page, ORIGIN_SECRET refuses requests that did not
+come through the CloudFront distribution, DATA_DIR holds videos, references and the job history.
+/healthz says "sleep" once nobody has used the app for IDLE_MINUTES and no work is running; a
+timer on the server then shuts it down, and the wake page in deploy/template.yaml starts it again.
 """
 
+import hashlib
+import hmac
 import json
+import os
 import queue
+import shutil
 import threading
 import time
 import uuid
 
-from flask import Flask, abort, jsonify, request, send_from_directory
+from flask import Flask, abort, jsonify, redirect, request, send_from_directory, session
 
 import pipeline
 import pricing
@@ -18,8 +27,70 @@ import reference
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = reference.MAX_BYTES
+PASSWORD = os.environ.get("APP_PASSWORD", "")
+ORIGIN_SECRET = os.environ.get("ORIGIN_SECRET", "")
+app.secret_key = hashlib.sha256(f"session:{PASSWORD}".encode()).hexdigest()
+app.config.update(SESSION_COOKIE_SECURE=bool(ORIGIN_SECRET), SESSION_COOKIE_SAMESITE="Lax",
+                  PERMANENT_SESSION_LIFETIME=30 * 86400)
+JOBS_FILE = pipeline.DATA / "jobs.json"
 JOBS: dict[str, dict] = {}
 QUEUE: queue.Queue = queue.Queue()
+SAVING = threading.Lock()
+TASKS: dict[str, dict] = {}   # references being added; a slow download must outlive CloudFront's 60 s
+IDLE_SECONDS = int(os.environ.get("IDLE_MINUTES", 30)) * 60
+LAST_USED = time.time()
+
+
+def save_jobs():
+    with SAVING:
+        JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = JOBS_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(sorted(list(JOBS.values()), key=lambda j: -j["queued"])[:200], ensure_ascii=False))
+        tmp.replace(JOBS_FILE)
+
+
+def load_jobs():
+    """Everyone follows the same history; a job cut off by a restart is reported, not lost."""
+    if not JOBS_FILE.exists():
+        return
+    for job in json.loads(JOBS_FILE.read_text()):
+        if job["status"] in ("queued", "running"):
+            job["status"], job["error"] = "error", "Sunucu yeniden başladı, işi tekrar başlatın."
+        JOBS[job["id"]] = job
+
+
+@app.get("/healthz")
+def healthz():
+    busy = (any(j["status"] in ("queued", "running") for j in list(JOBS.values()))
+            or any(t["status"] == "running" for t in list(TASKS.values())))
+    return "sleep" if not busy and time.time() - LAST_USED > IDLE_SECONDS else "awake"
+
+
+@app.before_request
+def guard():
+    global LAST_USED
+    if request.endpoint == "healthz":
+        return None
+    # An open tab polls the queue every few seconds; that alone must not keep the server awake.
+    if not (request.method == "GET" and request.path.startswith("/api/jobs")):
+        LAST_USED = time.time()
+    if ORIGIN_SECRET and not hmac.compare_digest(request.headers.get("X-Origin-Verify", ""), ORIGIN_SECRET):
+        abort(403)
+    if PASSWORD and not session.get("in") and request.endpoint != "login":
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "Giriş gerekli."}), 401
+        return redirect("/login")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        if hmac.compare_digest(request.form.get("password", ""), PASSWORD):
+            session.permanent, session["in"] = True, True
+            return redirect("/")
+        time.sleep(1)
+        return redirect("/login?hata=1")
+    return send_from_directory(pipeline.ROOT / "static", "login.html")
 
 
 def worker():
@@ -27,13 +98,22 @@ def worker():
         key = QUEUE.get()
         job = JOBS[key]
         job["status"], job["started"] = "running", time.time()
+        save_jobs()
         try:
             job["result"] = pipeline.run(**job["params"], log=lambda line: job["log"].append(line))
             job["status"] = "done"
         except Exception as e:  # surface any failure to the UI
             job["status"], job["error"] = "error", str(e)
         job["finished"] = time.time()
+        save_jobs()
 
+
+
+def model_for(key):
+    """The subscription route needs the `claude` CLI, which servers do not have."""
+    if key not in pricing.MODELS or (key.startswith("sub-") and not shutil.which("claude")):
+        return pricing.DEFAULT_MODEL
+    return key
 
 
 @app.post("/api/jobs")
@@ -47,12 +127,13 @@ def create_job():
         "colors": body.get("colors", "").strip(),
         "fmt": body.get("format", "16:9") if body.get("format") in pipeline.FORMATS else "16:9",
         "duration": max(12, min(int(body.get("duration", 20)), 45)),
-        "model_key": body.get("model") if body.get("model") in pricing.MODELS else pricing.DEFAULT_MODEL,
+        "model_key": model_for(body.get("model")),
         "template": body.get("template", ""),
         "reference_id": body.get("reference") if reference.known(body.get("reference")) else "",
     }
     key = uuid.uuid4().hex[:8]
     JOBS[key] = {"id": key, "status": "queued", "log": [], "params": params, "queued": time.time()}
+    save_jobs()
     QUEUE.put(key)
     return jsonify({"id": key, "position": QUEUE.qsize()})
 
@@ -116,13 +197,36 @@ def showcase_one(ref_id):
 
 @app.post("/api/references")
 def add_reference():
-    """A user's own reference: a video link (JSON) or an uploaded file (multipart)."""
-    try:
-        if "file" in request.files:
-            return jsonify(reference.add_upload(request.files["file"]))
-        return jsonify(reference.add_link((request.get_json(silent=True) or {}).get("url", "")))
-    except reference.RefError as e:
-        return jsonify({"error": str(e)}), 400
+    """A user's own reference: a video link (JSON) or an uploaded file (multipart). Runs in the
+    background; the page follows /api/references/<task>."""
+    if "file" in request.files:
+        d, name = reference.stage_upload(request.files["file"])
+        work = lambda: reference.add_upload(d, name)
+    else:
+        url = (request.get_json(silent=True) or {}).get("url", "")
+        try:
+            reference.check_url(url)
+        except reference.RefError as e:
+            return jsonify({"error": str(e)}), 400
+        work = lambda: reference.add_link(url)
+    key = uuid.uuid4().hex[:8]
+    TASKS[key] = {"status": "running"}
+
+    def run():
+        try:
+            TASKS[key] = {"status": "done", "id": work()["id"]}
+        except reference.RefError as e:
+            TASKS[key] = {"status": "error", "error": str(e)}
+        except Exception:
+            TASKS[key] = {"status": "error", "error": "Video eklenemedi."}
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({"task": key})
+
+
+@app.get("/api/references/<key>")
+def reference_task(key):
+    return jsonify(TASKS.get(key) or abort(404))
 
 
 @app.errorhandler(413)
@@ -152,6 +256,7 @@ def index():
     return send_from_directory(pipeline.ROOT / "static", "index.html")
 
 
+load_jobs()
 threading.Thread(target=worker, daemon=True).start()
 
 if __name__ == "__main__":

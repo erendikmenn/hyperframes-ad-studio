@@ -5,6 +5,8 @@ profiles bill +10%. Thinking tokens are billed as output tokens.
 Cache write = 1.25x input (5 min TTL), cache read = 0.1x input.
 """
 
+import os
+
 # key -> (bedrock model id, input $/1M, output $/1M)
 MODELS = {
     "sonnet-4.6": ("global.anthropic.claude-sonnet-4-6", 3.00, 15.00),
@@ -19,7 +21,7 @@ MODELS = {
     "sub-sonnet-5.5": ("claude-sonnet-5-5", 0.0, 0.0),
 }
 
-DEFAULT_MODEL = "sonnet-4.6"
+DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "sonnet-4.6")
 
 # Render compute on ECS Fargate (us-east-1, Linux/x86): 4 vCPU + 8 GB task.
 FARGATE_VCPU_HOUR = 0.04048
