@@ -1,0 +1,11 @@
+# Generated videos and downloaded third-party reference films
+runs/
+library/references/
+
+__pycache__/
+*.pyc
+.venv/
+.env
+*.log
+.DS_Store
+.hyperframes/

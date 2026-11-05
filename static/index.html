@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reklam Stüdyosu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f6f5f2; --panel:#ffffff; --line:#e4e1da; --ink:#141414; --mute:#6b6862; --soft:#efede8;
+    --accent:#1f5eff; --ok:#15803d; --warn:#b45309; --err:#b91c1c; --screen:#101010;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg:#111110; --panel:#1a1a19; --line:#2c2b29; --ink:#f1efe9; --mute:#9a968d; --soft:#232321;
+    --accent:#7aa2ff; --ok:#4ade80; --warn:#fbbf24; --err:#f87171; --screen:#000;
+  } }
+  :root[data-theme="dark"] {
+    --bg:#111110; --panel:#1a1a19; --line:#2c2b29; --ink:#f1efe9; --mute:#9a968d; --soft:#232321;
+    --accent:#7aa2ff; --ok:#4ade80; --warn:#fbbf24; --err:#f87171; --screen:#000;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 Inter, system-ui, sans-serif; }
+  a { color:inherit; }
+  button, input, select, textarea { font:inherit; color:inherit; }
+  .shell { max-width:1240px; margin:0 auto; padding:0 16px 64px; }
+  header { position:sticky; top:0; z-index:5; background:color-mix(in oklab, var(--bg) 88%, transparent); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+  .bar { max-width:1240px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; gap:24px; flex-wrap:wrap; }
+  .logo { font:400 19px/1 "Archivo Black", Inter, sans-serif; letter-spacing:-.02em; text-decoration:none; }
+  .logo small { font:500 12px Inter, sans-serif; color:var(--mute); letter-spacing:0; margin-left:8px; }
+  nav { display:flex; gap:4px; flex-wrap:wrap; }
+  nav a { text-decoration:none; padding:7px 12px; border-radius:8px; color:var(--mute); font-weight:500; }
+  nav a.on { background:var(--soft); color:var(--ink); }
+  nav .badge { display:inline-block; min-width:18px; padding:0 5px; margin-left:4px; border-radius:9px; background:var(--accent); color:#fff; font-size:11px; line-height:18px; text-align:center; }
+  [hidden] { display:none !important; }
+  .cta { margin-left:auto; text-decoration:none; background:var(--ink); color:var(--bg); padding:9px 16px; border-radius:8px; font-weight:600; }
+
+  h1 { font:400 clamp(30px, 5vw, 48px)/1.02 "Archivo Black", Inter, sans-serif; letter-spacing:-.03em; margin:40px 0 8px; }
+  h2 { font-size:18px; margin:32px 0 12px; }
+  .lede { color:var(--mute); max-width:640px; margin:0 0 24px; }
+  .muted { color:var(--mute); }
+  .kpis { display:flex; gap:32px; flex-wrap:wrap; margin:0 0 28px; }
+  .kpi b { display:block; font-size:24px; font-variant-numeric:tabular-nums; }
+  .kpi span { color:var(--mute); font-size:13px; }
+
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 20px; }
+  .chip { border:1px solid var(--line); background:var(--panel); padding:6px 12px; border-radius:999px; cursor:pointer; font-size:13px; }
+  .chip.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; text-decoration:none; display:flex; flex-direction:column; }
+  .card:hover { border-color:var(--mute); }
+  .thumb { position:relative; aspect-ratio:4/5; background:var(--screen); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .thumb img, .thumb video { width:100%; height:100%; object-fit:cover; display:block; }
+  .thumb video { position:absolute; inset:0; opacity:0; }
+  .card:hover .thumb video { opacity:1; }
+  .fmt { position:absolute; left:10px; top:10px; background:rgb(0 0 0 / .6); color:#fff; font-size:11px; font-weight:600; padding:2px 7px; border-radius:6px; }
+  .meta { padding:12px 14px 14px; display:grid; gap:4px; }
+  .meta b { font-size:15px; }
+  .meta .row { display:flex; justify-content:space-between; gap:8px; font-size:13px; color:var(--mute); font-variant-numeric:tabular-nums; }
+  .clamp { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:13px; color:var(--mute); }
+  .empty { border:1px dashed var(--line); border-radius:12px; padding:48px 16px; text-align:center; color:var(--mute); }
+
+  .styles { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px; }
+  .style { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; }
+  .swatch { display:flex; height:64px; }
+  .swatch i { flex:1; }
+  .swatch i:first-child { flex:3; }
+  .style .body { padding:16px; display:grid; gap:10px; flex:1; }
+  .style h3 { margin:0; font-size:18px; }
+  .rules { margin:0; padding-left:18px; font-size:13px; color:var(--mute); }
+  .mini { display:flex; gap:8px; overflow-x:auto; }
+  .mini a { flex:0 0 auto; width:96px; height:96px; background:var(--screen); border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+  .mini img { max-width:100%; max-height:100%; }
+  .tag { display:inline-block; font-size:12px; color:var(--mute); background:var(--soft); padding:2px 8px; border-radius:6px; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:1px solid var(--line); background:var(--panel); padding:9px 14px; border-radius:8px; cursor:pointer; text-decoration:none; font-weight:500; font-size:14px; }
+  .btn.primary { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  .btn:disabled { opacity:.5; cursor:wait; }
+
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; }
+  .panel + .panel { margin-top:16px; }
+  .panel h3 { margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--mute); font-weight:600; }
+  .dl { display:grid; grid-template-columns:110px 1fr; gap:6px 12px; font-size:14px; margin:0; }
+  .dl dt { color:var(--mute); }
+  .dl dd { margin:0; }
+  .pal { display:flex; gap:6px; flex-wrap:wrap; }
+  .pal span { display:flex; align-items:center; gap:6px; font:12px ui-monospace, Menlo, monospace; color:var(--mute); }
+  .pal i { width:18px; height:18px; border-radius:5px; border:1px solid var(--line); }
+  table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+  th, td { text-align:right; padding:6px 4px; border-bottom:1px solid var(--line); }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:var(--mute); font-weight:500; }
+  tfoot td { font-weight:700; border-bottom:0; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+
+  .compose { max-width:760px; margin:0 auto; padding-top:40px; }
+  .compose h1 { font-size:clamp(28px, 4vw, 38px); margin:0 0 20px; }
+  .ref-pick { display:flex; align-items:center; gap:14px; padding:10px; margin-bottom:14px; background:var(--panel); border:1px solid var(--line); border-radius:12px; }
+  .ref-pick img { width:112px; aspect-ratio:16/9; object-fit:cover; border-radius:7px; background:var(--screen); flex:none; display:block; }
+  .ref-pick div { min-width:0; flex:1; }
+  .ref-pick b { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ref-pick span { font-size:13px; color:var(--mute); }
+  .ref-pick a { flex:none; font-size:14px; color:var(--mute); padding:6px 10px; }
+  .composer { background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+  .composer:focus-within { border-color:var(--mute); }
+  .composer textarea { display:block; width:100%; min-height:240px; padding:18px; border:0; background:transparent; resize:vertical; font-size:16px; line-height:1.55; outline:none; }
+  .composer-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px; border-top:1px solid var(--line); }
+  .sizes { display:flex; gap:4px; border:0; margin:0; padding:0; min-width:0; }
+  .sizes label { cursor:pointer; }
+  .sizes input { position:absolute; opacity:0; width:1px; height:1px; }
+  .sizes span { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; font-size:14px; color:var(--mute); }
+  .sizes i { display:block; border:1.5px solid currentColor; border-radius:2px; }
+  .sizes input:checked + span { background:var(--soft); color:var(--ink); font-weight:500; }
+  .sizes input:focus-visible + span { outline:2px solid var(--accent); }
+  .composer-foot .btn { flex:none; padding:10px 18px; font-weight:600; }
+  .composer .link-input { display:block; width:100%; padding:18px; border:0; background:transparent; font-size:16px; outline:none; }
+  .composer-foot .upload { color:var(--mute); font-size:14px; padding:8px 10px; cursor:pointer; border-radius:8px; }
+  .composer-foot .upload:hover { background:var(--soft); color:var(--ink); }
+  .composer-foot .upload input { position:absolute; opacity:0; width:1px; height:1px; }
+  .composer-foot .upload:focus-within { outline:2px solid var(--accent); }
+  .status { min-height:20px; margin:12px 2px 0; font-size:14px; color:var(--mute); }
+  .status.bad { color:var(--err); }
+  .alt { display:inline-block; margin-top:20px; font-size:14px; color:var(--mute); }
+  .est { font-size:13px; color:var(--mute); margin:12px 2px 0; }
+  @media (max-width: 560px) {
+    .composer-foot { flex-direction:column; align-items:stretch; }
+    .sizes label { flex:1; }
+    .sizes span { justify-content:center; padding:8px 4px; }
+    .ref-pick img { width:84px; }
+  }
+
+  .jobs { display:grid; gap:10px; }
+  .job { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; display:grid; grid-template-columns:1fr auto; gap:6px 16px; align-items:center; }
+  .job .st { font-size:12px; font-weight:600; padding:2px 8px; border-radius:6px; background:var(--soft); }
+  .st.running { color:var(--accent); } .st.done { color:var(--ok); } .st.error { color:var(--err); } .st.queued { color:var(--warn); }
+  .log { grid-column:1 / -1; font:12px/1.6 ui-monospace, Menlo, monospace; color:var(--mute); white-space:pre-wrap; max-height:200px; overflow:auto; margin:0; }
+  .thumb.wide { aspect-ratio:16/10; }
+  .credit { font-size:12px; color:var(--mute); }
+  .credit a { color:var(--mute); }
+  .badge-ok { font-size:11px; font-weight:600; color:var(--ok); }
+  .picked { display:grid; grid-template-columns:160px 1fr; gap:14px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px; margin-top:6px; }
+  .picked .thumb { aspect-ratio:16/10; border-radius:8px; }
+  .picked b { display:block; }
+  .acts { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+  .acts li { font-size:14px; display:grid; grid-template-columns:76px 1fr; gap:10px; }
+  .acts .t { color:var(--mute); font-variant-numeric:tabular-nums; font-size:13px; }
+  .acts small { display:block; color:var(--mute); }
+  .back { display:inline-block; margin:20px 0 12px; color:var(--mute); text-decoration:none; font-size:14px; }
+  .back:hover { color:var(--ink); }
+  .stage { background:var(--screen); border-radius:16px; overflow:hidden; display:flex; justify-content:center; }
+  .stage video { display:block; aspect-ratio:var(--ar); width:min(100%, calc(min(66vh, 680px) * var(--ar))); object-fit:contain; }
+  .ref-head { display:flex; align-items:center; justify-content:space-between; gap:24px; margin:24px 0 0; padding-bottom:24px; border-bottom:1px solid var(--line); }
+  .ref-head h1 { font-size:clamp(26px, 3.4vw, 36px); margin:0 0 8px; }
+  .facts { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:14px; color:var(--mute); }
+  .facts span:not(:last-child)::after { content:"·"; margin-left:10px; }
+  .facts a { color:var(--mute); }
+  .btn.big { flex:none; padding:14px 22px; font-size:15px; font-weight:600; border-radius:10px; }
+  .section { margin-top:36px; }
+  .section > h2 { margin:0 0 4px; font-size:20px; }
+  .section > p { margin:0 0 16px; color:var(--mute); font-size:14px; }
+  .rail { display:flex; gap:2px; height:8px; border-radius:4px; overflow:hidden; margin-bottom:14px; }
+  .rail i { background:var(--ink); opacity:.28; min-width:4px; }
+  .rail i:nth-child(odd) { opacity:.6; }
+  .beats { display:grid; grid-template-columns:repeat(var(--n), minmax(0, 1fr)); gap:10px; }
+  .similar { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:16px; }
+  @media (max-width: 1000px) { .similar { grid-template-columns:repeat(3, minmax(0, 1fr)); } .similar > :nth-child(4) { display:none; } }
+  .beat { min-width:0; }
+  .beat img { display:block; width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:8px; background:var(--screen); }
+  .beat b { display:block; margin-top:8px; font-size:14px; }
+  .beat span { font-size:13px; color:var(--mute); font-variant-numeric:tabular-nums; }
+  details.more { margin-top:20px; background:var(--panel); border:1px solid var(--line); border-radius:12px; }
+  details.more summary { cursor:pointer; padding:14px 18px; font-weight:500; }
+  .more-body { padding:2px 18px 18px; display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:18px 28px; font-size:14px; line-height:1.55; }
+  .more-body h4 { margin:0 0 4px; font-size:12px; color:var(--mute); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+  .more-body p { margin:0; }
+  .more-body .rules { color:inherit; font-size:14px; }
+  .more-body .wide { grid-column:1 / -1; }
+  .hint { margin:16px 0 0; color:var(--mute); font-size:14px; }
+  @media (max-width: 640px) {
+    .logo small { display:none; }
+    .logo { width:100%; }
+    .bar { gap:10px 8px; }
+    nav a { padding:7px 9px; }
+    .cta { padding:8px 12px; font-size:14px; }
+    .ref-head { flex-direction:column; align-items:stretch; gap:16px; }
+    .btn.big { width:100%; }
+    .beats { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:42%; overflow-x:auto; padding-bottom:6px; }
+    .similar { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
+    .similar > :nth-child(4) { display:flex; }
+  }
+  .head-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; flex:none; max-width:55%; }
+  .head-actions .btn { padding:10px 14px; }
+  .ref-head .sum { margin:8px 0 0; color:var(--mute); max-width:560px; }
+  .pair { display:grid; grid-template-columns:minmax(0, 1.5fr) minmax(0, 1fr); gap:16px; margin-top:24px; }
+  .pair .panel + .panel { margin-top:0; }
+  .ref-link { display:flex; gap:12px; align-items:center; text-decoration:none; }
+  .ref-link img { width:104px; aspect-ratio:16/9; object-fit:cover; border-radius:7px; flex:none; background:var(--screen); }
+  .ref-link b { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:14px; line-height:1.35; }
+  .stats-row { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .stats-row div { background:var(--panel); padding:14px 16px; min-width:0; }
+  .stats-row b { display:block; font-size:20px; font-variant-numeric:tabular-nums; }
+  .stats-row span { font-size:13px; color:var(--mute); }
+  .beat p { margin:6px 0 2px; font-size:14px; line-height:1.3; }
+  .more-table { padding:2px 18px 18px; overflow-x:auto; }
+  @media (max-width: 760px) {
+    .pair { grid-template-columns:1fr; }
+    .stats-row { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    .ref-head { flex-direction:column; align-items:stretch; gap:16px; }
+    .head-actions { max-width:none; justify-content:flex-start; }
+  }
+  .note { font-size:13px; color:var(--mute); background:var(--soft); border-radius:10px; padding:12px 14px; }
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <a class="logo" href="#/">Reklam Stüdyosu<small>Bedrock × HyperFrames · POC</small></a>
+  <nav>
+    <a href="#/" data-nav="refs">Referanslar</a>
+    <a href="#/queue" data-nav="queue">Kuyruk<span class="badge" id="qbadge" hidden></span></a>
+  </nav>
+  <a class="cta" href="#/reference">Referans video</a>
+</div></header>
+<main class="shell" id="view"></main>
+
+<script>
+const $ = s => document.querySelector(s);
+const view = $('#view');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const usd = (v, d = 2) => '$' + Number(v || 0).toFixed(d);
+const api = p => fetch(p).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+const FMT_LABEL = {'16:9': 'Yatay 16:9', '9:16': 'Dikey 9:16', '1:1': 'Kare 1:1'};
+let REFS = null;
+const refs = async () => REFS ??= await api('/api/showcase');
+const refOf = id => REFS?.find(r => r.id === id);
+// The reference's ratio picks the default output format.
+const fmtFor = r => { const [a, b = 1] = r.ratio.split('/').map(Number); return a / b < 0.9 ? '9:16' : a / b < 1.15 ? '1:1' : '16:9'; };
+
+function hoverPlay() {
+  view.querySelectorAll('.card').forEach(c => {
+    const v = c.querySelector('video'); if (!v) return;
+    c.onmouseenter = () => { v.preload = 'auto'; v.play().catch(() => {}); };
+    c.onmouseleave = () => { v.pause(); v.currentTime = 0; };
+  });
+}
+
+// ---------------------------------------------------------------- references (HyperFrames showcase)
+function refCard(r) {
+  return `<a class="card" href="#/r/${r.id}">
+    <div class="thumb wide"><img src="${esc(r.poster)}" alt="" loading="lazy">
+      <video src="${esc(r.video)}" muted loop playsinline preload="none"></video>
+      <span class="fmt">${esc(r.ratio.replace('/', ':'))}</span></div>
+    <div class="meta"><b>${esc(r.name)}</b>
+      <div class="row"><span>${esc(r.kind || r.category)}</span>${r.analyzed ? '<span class="badge-ok">analiz hazır</span>' : ''}</div>
+    </div></a>`;
+}
+
+async function refsView(params) {
+  await refs();
+  const cat = params.get('cat') || '';
+  const cats = [...new Set(REFS.map(r => r.category))];
+  const shown = REFS.filter(r => !cat || r.category === cat);
+  view.innerHTML = `
+    <h1>Bir reklam seç, kendi markanla yeniden üret</h1>
+    <p class="lede">Bu filmlerin hepsi HyperFrames ile yapıldı (HyperFrames showcase). Üstüne gelince oynar. Birini seçince sistem kurgusunu çıkarır: çekim ritmi, yerleşim, tipografi, imza hareketler. Ardından aynı filmi sizin brief'iniz, ürününüz ve renklerinizle üretir.</p>
+    <div class="chips"><a class="chip ${!cat ? 'on' : ''}" href="#/">Tümü (${REFS.length})</a>${cats.map(c => `<a class="chip ${cat === c ? 'on' : ''}" href="#/?cat=${encodeURIComponent(c)}">${esc(c)}</a>`).join('')}</div>
+    <div class="grid">${shown.map(refCard).join('')}</div>
+    <p class="credit" style="margin-top:24px">Videolar <a href="https://hyperframes.heygen.com/examples" target="_blank" rel="noopener">hyperframes.heygen.com/examples</a> sayfasından, HeyGen CDN'inden oynatılır. Remix filmler orijinal paylaşımlara bağlantı verir.</p>`;
+  hoverPlay();
+}
+
+const ROLE = {hook: 'Açılış', tension: 'Gerilim', reveal: 'Ortaya çıkış', proof: 'Kanıt', payoff: 'Doruk', endcard: 'Kapanış'};
+async function refDetail(id) {
+  REFS = null; await refs();
+  const r = refOf(id); if (!r) throw new Error('404');
+  const e = r.edit;
+  const [w, h = 1] = r.ratio.split('/').map(Number);
+  const similar = REFS.filter(x => x.id !== id && x.category === r.category).slice(0, 4);
+  const total = e ? e.acts.reduce((a, x) => a + (x.end - x.start), 0) : 0;
+  view.innerHTML = `
+    <a class="back" href="#/">← Referanslar</a>
+    <div class="stage" style="--ar:${w / h}"><video src="${esc(r.video)}" poster="${esc(r.poster)}" controls autoplay muted loop playsinline></video></div>
+    <div class="ref-head">
+      <div>
+        <h1>${esc(r.name)}</h1>
+        <div class="facts"><span>${esc(r.kind || r.category)}</span>
+          ${e ? `<span>${Math.round(e.duration)} sn</span><span>${e.shot_count} çekim</span>` : (r.seconds ? `<span>${Math.round(r.seconds)} sn</span>` : '')}
+          ${e?.sound_measured ? `<span>Ses: ${esc({music: 'müzik', speech: 'konuşma'}[e.sound_measured.kind] || e.sound_measured.kind)}${e.sound_measured.bpm ? ` · ${Math.round(e.sound_measured.bpm)} BPM` : ''}</span>` : ''}
+          ${r.credit ? `<span>${r.original ? `<a href="${esc(r.original)}" target="_blank" rel="noopener">${esc(r.credit)}</a>` : esc(r.credit)}</span>` : ''}</div>
+      </div>
+      <a class="btn primary big" href="#/new?ref=${r.id}">Bu referansı kullan</a>
+    </div>
+    ${e ? `<section class="section">
+        <h2>Filmin yapısı</h2>
+        <p>Remix bu bölümleri aynı sırayla ve aynı ritimle kurar.</p>
+        <div class="rail">${e.acts.map(a => `<i style="flex:${Math.max(a.end - a.start, .1) / total}"></i>`).join('')}</div>
+        <div class="beats" style="--n:${e.acts.length}">${e.acts.map(a => `<div class="beat"><img src="/references/${r.id}/frames/${esc(a.frame)}" alt="" loading="lazy"><b>${esc(ROLE[a.role] || a.role)}</b><span>${(+a.start).toFixed(1)}–${(+a.end).toFixed(1)} sn</span></div>`).join('')}</div>
+        <details class="more"><summary>Kurgu ayrıntıları</summary><div class="more-body">
+          <div class="wide"><h4>Özet</h4><p>${esc(e.summary)}</p></div>
+          <div><h4>Ritim</h4><p>${esc(e.pacing)}</p></div>
+          <div><h4>Görünüm</h4><p>${esc(e.look?.medium)}</p></div>
+          <div><h4>Tipografi</h4><p>${esc(e.look?.type)}</p></div>
+          <div><h4>Geçişler</h4><p>${esc(e.transitions)}</p></div>
+          ${e.sound ? `<div class="wide"><h4>Ses</h4><p>${esc(e.sound.role)} ${esc(e.sound.arc)}</p></div>` : ''}
+          <div class="wide"><h4>İmza hareketler</h4><ul class="rules">${(e.signature_moves || []).map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>
+        </div></details>
+      </section>`
+      : `<p class="hint">İlk kullanımda film analiz edilir; çekim ritmi ve yerleşimi çıkarılır. Tek seferlik maliyet yaklaşık $0.05.</p>`}
+    ${similar.length ? `<section class="section"><h2>Benzer referanslar</h2><p>${esc(r.category)}</p><div class="similar">${similar.map(refCard).join('')}</div></section>` : ''}`;
+  hoverPlay();
+}
+
+const STEP = {plan: 'Film planı', factcheck: 'Olgu kontrolü', facts: 'Olgu kontrolü', scene: 'Sahne yazımı', review: 'Görsel review', 'onarım': 'Onarım', reference: 'Referans analizi'};
+async function detail(id) {
+  const [{result: r, board: b, frames}] = await Promise.all([api('/api/videos/' + id), refs()]);
+  const ref = refOf(r.reference);
+  const sub = r.model.startsWith('sub-');
+  const groups = {};
+  for (const c of r.calls) {
+    const k = STEP[c.step.split(':')[0].replace(/-\d+$/, '')] || c.step;
+    const g = groups[k] ??= {n: 0, inTok: 0, outTok: 0, s: 0, usd: 0};
+    g.n++; g.inTok += c.usage.input_tokens + c.usage.cache_creation_input_tokens + c.usage.cache_read_input_tokens;
+    g.outTok += c.usage.output_tokens; g.s += c.seconds; g.usd += c.cost_usd;
+  }
+  const [w, h] = r.format.split(':').map(Number);
+  const other = r.format === '16:9' ? '9:16' : '16:9';
+  const pal = Object.entries(b.look?.palette || {}).filter(([, c]) => typeof c === 'string');
+  const times = Object.fromEntries((r.timing?.scenes || []).map(t => [t.id, t]));
+  const scenes = (b.scenes || []).map(s => ({...s, t: times[s.id]})).filter(s => s.t);
+  const span = t => t.cut_out - t.cut;
+  view.innerHTML = `
+    <a class="back" href="#/queue">← Kuyruk</a>
+    <div class="stage" style="--ar:${w / h}"><video src="/${r.video}" poster="/runs/${r.job_id}/poster.jpg" controls playsinline></video></div>
+    <div class="ref-head">
+      <div>
+        <h1>${esc(r.brand || 'İsimsiz')}</h1>
+        <div class="facts"><span>${esc(FMT_LABEL[r.format] || r.format)}</span><span>${Math.round(r.duration_s)} sn</span><span>${r.music ? 'Müzikli' : 'Sessiz'}</span></div>
+        ${r.film?.one_thing ? `<p class="sum">${esc(r.film.one_thing)}</p>` : ''}
+      </div>
+      <div class="head-actions">
+        <a class="btn primary" href="/${r.video}" download>MP4 indir</a>
+        <a class="btn" href="#/new?from=${r.job_id}">Brief'i düzenle</a>
+        <button class="btn" data-requeue="{}">Yeniden üret</button>
+        <button class="btn" data-requeue='${esc(JSON.stringify({format: other}))}'>${FMT_LABEL[other]} üret</button>
+      </div>
+    </div>
+    <div class="pair" ${ref ? '' : 'style="grid-template-columns:1fr"'}>
+      <div class="panel"><h3>Brief</h3><p style="margin:0">${esc(r.brief)}</p></div>
+      ${ref ? `<div class="panel"><h3>Referans film</h3><a class="ref-link" href="#/r/${ref.id}"><img src="${esc(ref.poster)}" alt=""><b>${esc(ref.name)}</b></a></div>` : ''}
+    </div>
+    ${scenes.length ? `<section class="section">
+      <h2>Sahne akışı</h2>
+      <p>${scenes.length} sahne${ref ? ', referansın bölüm sırasıyla' : ''}.</p>
+      <div class="rail">${scenes.map(s => `<i style="flex:${span(s.t)}"></i>`).join('')}</div>
+      <div class="beats" style="--n:${scenes.length}">${scenes.map(s => `<div class="beat">${frames[s.id] ? `<img src="/${frames[s.id]}" alt="" loading="lazy">` : ''}<p>${esc(s.headline || ROLE[s.beat] || s.id)}</p><span>${esc(ROLE[s.beat] || s.beat)} · ${s.t.cut.toFixed(0)}–${s.t.cut_out.toFixed(0)} sn</span></div>`).join('')}</div>
+    </section>` : ''}
+    <section class="section">
+      <h2>Maliyet</h2>
+      <p>${sub ? 'Claude aboneliği üzerinden üretildi, token maliyeti yok.' : 'Amazon Bedrock token maliyeti ve Fargate render tahmini.'}</p>
+      <div class="stats-row">
+        <div><b>${sub ? 'Abonelik' : usd(r.cost.total_usd)}</b><span>Toplam</span></div>
+        <div><b>${r.calls.length}</b><span>Model çağrısı</span></div>
+        <div><b>${Math.round(r.render_seconds)} sn</b><span>Render</span></div>
+        <div><b>${r.check_errors_left}</b><span>Hata, ${r.check_findings_left} uyarı</span></div>
+      </div>
+      <details class="more"><summary>Adım adım maliyet</summary><div class="more-table">
+        <table><thead><tr><th>Adım</th><th>Çağrı</th><th>Token (in/out)</th><th>Süre</th><th>Maliyet</th></tr></thead>
+        <tbody>${Object.entries(groups).map(([k, g]) => `<tr><td>${esc(k)}</td><td>${g.n}</td><td>${(g.inTok / 1000).toFixed(0)}K / ${(g.outTok / 1000).toFixed(1)}K</td><td>${g.s.toFixed(0)} sn</td><td>${usd(g.usd, 3)}</td></tr>`).join('')}
+          <tr><td>Render (Fargate tahmini)</td><td></td><td></td><td>${Math.round(r.render_seconds)} sn</td><td>${usd(r.cost.render_fargate_usd_est, 4)}</td></tr></tbody>
+        <tfoot><tr><td>Toplam</td><td>${r.calls.length}</td><td></td><td></td><td>${usd(r.cost.total_usd, 3)}</td></tr></tfoot></table>
+      </div></details>
+      <details class="more"><summary>Film ayrıntıları</summary><div class="more-body">
+        <div class="wide"><h4>Görünüm</h4><p>${esc(r.film?.look)}</p></div>
+        <div><h4>Anlatım</h4><p>${esc(r.film?.device)}</p></div>
+        <div><h4>Form</h4><p>${esc(r.film?.form)}</p></div>
+        <div><h4>Palet</h4><div class="pal">${pal.map(([k, c]) => `<span><i style="background:${esc(c)}"></i>${esc(k)}</span>`).join('')}</div></div>
+        <div><h4>Font ve model</h4><p>${esc(b.look?.fonts?.display)} / ${esc(b.look?.fonts?.body)}<br>${esc(r.bedrock_model_id)}</p></div>
+        ${r.facts_fixed?.length ? `<div class="wide"><h4>Olgu düzeltme</h4><p>${r.facts_fixed.map(f => `<s>${esc(f.text)}</s>`).join('<br>')}</p></div>` : ''}
+        <div class="wide"><a class="credit" href="/runs/${r.job_id}/storyboard.json" target="_blank">Storyboard JSON</a> · <a class="credit" href="/runs/${r.job_id}/index.html" target="_blank">Kompozisyon</a></div>
+      </div></details>
+    </section>`;
+  view.querySelectorAll('[data-requeue]').forEach(btn => btn.onclick = async () => {
+    btn.disabled = true;
+    await submit({brief: r.brief, brand: r.brand, colors: r.colors, format: r.format, duration: Math.round(r.duration_s),
+                  model: r.model, reference: r.reference || '', template: r.template || '', ...JSON.parse(btn.dataset.requeue)});
+  });
+}
+
+// ---------------------------------------------------------------- new video
+const SIZES = [['16:9', 'Yatay', 18, 10], ['9:16', 'Dikey', 10, 18], ['1:1', 'Kare', 14, 14]];
+async function newVideo(params) {
+  await refs();
+  let pre = {format: '16:9', duration: 20, reference: params.get('ref') || ''};
+  if (params.get('from')) {
+    const {result: r} = await api('/api/videos/' + params.get('from'));
+    pre = {brief: r.brief, brand: r.brand, colors: r.colors, format: r.format, duration: Math.round(r.duration_s), reference: r.reference || ''};
+  }
+  const ref = refOf(pre.reference);
+  if (ref && !params.get('from')) {
+    pre.format = fmtFor(ref);
+    const seconds = ref.edit?.duration ?? ref.seconds;
+    if (seconds) pre.duration = Math.max(12, Math.min(45, Math.round(seconds)));
+  }
+  view.innerHTML = `
+    <form class="compose" id="f">
+      <h1>Yeni video</h1>
+      ${ref ? `<div class="ref-pick"><img src="${esc(ref.poster)}" alt=""><div><b>${esc(ref.name)}</b><span>Referans film</span></div><a href="#/">Değiştir</a></div>` : ''}
+      <div class="composer">
+        <textarea name="brief" required autofocus aria-label="Brief" placeholder="Brief'inizi buraya yazın ya da yapıştırın: marka, ürün, hedef kitle, öne çıkan rakamlar ve çağrı. Videoda yalnızca burada yazan iddialar kullanılır."></textarea>
+        <div class="composer-foot">
+          <fieldset class="sizes"><legend hidden>Boyut</legend>${SIZES.map(([v, l, w, h]) => `<label><input type="radio" name="format" value="${v}"><span><i style="width:${w}px;height:${h}px"></i>${l} ${v}</span></label>`).join('')}</fieldset>
+          <button class="btn primary" id="go">Video oluştur</button>
+        </div>
+      </div>
+      <p class="est">${ref ? 'Seçtiğiniz filmin kurgusu korunur, içerik brief\'inizden gelir. ' : ''}Yaklaşık 3–4 dakika, ≈ $1 Bedrock.</p>
+      <input type="hidden" name="reference"><input type="hidden" name="duration"><input type="hidden" name="brand"><input type="hidden" name="colors">
+    </form>`;
+  const f = $('#f');
+  for (const [k, v] of Object.entries(pre)) if (f.elements[k]) f.elements[k].value = v;
+  f.onsubmit = e => { e.preventDefault(); $('#go').disabled = true; submit(Object.fromEntries(new FormData(f))); };
+}
+
+function referenceView() {
+  view.innerHTML = `
+    <form class="compose" id="rf">
+      <h1>Referans video</h1>
+      <p class="lede">Beğendiğiniz reklamın linkini yapıştırın. Filmin kurgusu, ritmi, ses yapısı ve yazı dili çıkarılır; görüntüsü, sesi ve logosu kullanılmaz.</p>
+      <div class="composer">
+        <input class="link-input" name="url" type="url" inputmode="url" autofocus aria-label="Video linki" placeholder="https://www.youtube.com/watch?v=…">
+        <div class="composer-foot">
+          <label class="upload">Dosya yükle<input type="file" name="file" accept="video/*"></label>
+          <button class="btn primary" id="add">Devam et</button>
+        </div>
+      </div>
+      <p class="status" id="st" role="status"></p>
+      <p class="est">YouTube, TikTok, Instagram, X ya da doğrudan .mp4 linki. Video herkese açık ve en fazla 5 dakika olmalı. Kullanım hakları size aittir.</p>
+      <a class="alt" href="#/new">Referanssız devam et</a>
+    </form>`;
+  const f = $('#rf'), st = $('#st'), add = $('#add');
+  const send = async init => {
+    add.disabled = true; st.className = 'status'; st.textContent = 'Video alınıyor, bu bir dakika sürebilir…';
+    try {
+      const r = await fetch('/api/references', {method: 'POST', ...init});
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.error || 'Video eklenemedi.');
+      REFS = null; location.hash = '#/new?ref=' + body.id;
+    } catch (e) { st.className = 'status bad'; st.textContent = e.message; add.disabled = false; f.elements.file.value = ''; }
+  };
+  f.elements.file.onchange = () => {
+    const file = f.elements.file.files[0]; if (!file) return;
+    const data = new FormData(); data.append('file', file); send({body: data});
+  };
+  f.onsubmit = e => {
+    e.preventDefault();
+    const url = f.elements.url.value.trim();
+    if (!url) { st.className = 'status bad'; st.textContent = 'Bir link yapıştırın ya da dosya yükleyin.'; return; }
+    send({headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url})});
+  };
+}
+
+async function submit(body) {
+  const r = await fetch('/api/jobs', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  if (!r.ok) { alert('İş eklenemedi: ' + r.status); return; }
+  location.hash = '#/queue';
+}
+
+// ---------------------------------------------------------------- queue
+const STATUS = {queued: 'Sırada', running: 'Üretiliyor', done: 'Hazır', error: 'Hata'};
+let openLogs = new Set();
+async function queueView() {
+  const [jobs] = await Promise.all([api('/api/jobs'), refs()]);
+  const full = await Promise.all(jobs.filter(j => openLogs.has(j.id)).map(j => api('/api/jobs/' + j.id)));
+  const logs = Object.fromEntries(full.map(j => [j.id, j.log]));
+  view.innerHTML = `
+    <h1>Kuyruk</h1>
+    <p class="lede">Videolar Bedrock istek kotası nedeniyle sırayla üretilir. Production'da bu kuyruk SQS + Step Functions olur.</p>
+    ${jobs.length ? `<div class="jobs">${jobs.map(j => `
+      <div class="job">
+        <div><b>${esc(j.params.brand || 'İsimsiz')}</b> <span class="muted">· ${esc(j.params.fmt)} · ${j.params.duration} sn · ${refOf(j.params.reference_id) ? 'Referans: ' + esc(refOf(j.params.reference_id).name) : 'Serbest kurgu'}</span>
+          <div class="muted" style="font-size:13px">${esc(j.status === 'error' ? j.error : (j.last || '').replace(/^\[[^\]]+\]\s*/, ''))}</div></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="st ${j.status}">${STATUS[j.status]}</span>
+          ${j.status === 'done' ? `<a class="btn" href="#/v/${j.result.job_id}">Videoyu aç</a>` : ''}
+          <button class="btn" data-log="${j.id}">${openLogs.has(j.id) ? 'Logu gizle' : 'Log'}</button>
+        </div>
+        ${logs[j.id] ? `<pre class="log">${esc(logs[j.id].join('\n'))}</pre>` : ''}
+      </div>`).join('')}</div>` : `<div class="empty">Bu oturumda kuyruğa eklenmiş iş yok. <a href="#/">Bir referans seçin</a></div>`}`;
+  view.querySelectorAll('[data-log]').forEach(b => b.onclick = () => {
+    openLogs.has(b.dataset.log) ? openLogs.delete(b.dataset.log) : openLogs.add(b.dataset.log); queueView();
+  });
+}
+
+// ---------------------------------------------------------------- router + queue badge
+let timer, lastPath = '';
+async function route() {
+  clearInterval(timer);
+  const [path, qs] = (location.hash.slice(1) || '/').split('?');
+  const params = new URLSearchParams(qs);
+  const nav = path.startsWith('/queue') || path.startsWith('/v/') ? 'queue' : path === '/' || path.startsWith('/r/') ? 'refs' : '';
+  document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === nav));
+  try {
+    if (path.startsWith('/v/')) await detail(path.slice(3));
+    else if (path.startsWith('/r/')) await refDetail(path.slice(3));
+    else if (path === '/new') await newVideo(params);
+    else if (path === '/reference') referenceView();
+    else if (path === '/queue') { await queueView(); timer = setInterval(queueView, 2000); }
+    else await refsView(params);
+  } catch (e) { view.innerHTML = `<div class="empty" style="margin-top:40px">Sayfa yüklenemedi (${esc(e.message)}).</div>`; }
+  if (path !== lastPath) window.scrollTo(0, 0);
+  lastPath = path;
+}
+async function badge() {
+  try {
+    const n = (await api('/api/jobs')).filter(j => j.status === 'queued' || j.status === 'running').length;
+    $('#qbadge').hidden = !n; $('#qbadge').textContent = n;
+    if (n) REFS = null;   // a running job may analyse a reference or add a remix
+  } catch {}
+}
+addEventListener('hashchange', route);
+route(); badge(); setInterval(badge, 3000);
+</script>
+</body>
+</html>

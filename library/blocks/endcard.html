@@ -1,0 +1,39 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; overflow: hidden; background: var(--paper); font-family: var(--font-body); }
+    #end-flood { position: absolute; inset: 0; background: var(--field); }
+    #end-band { position: absolute; left: 0; right: 0; bottom: 0; height: $band_h; background: var(--plane); }
+    #end-cam { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: $gap; }
+    #end-title { font-family: var(--font-display); font-weight: var(--display-weight); font-size: $word_px; line-height: 0.9; letter-spacing: -0.035em; color: var(--field-ink); display: flex; white-space: nowrap; }
+    #end-title .end-l { display: inline-block; overflow: hidden; padding-bottom: 0.06em; }
+    #end-title .end-li { display: inline-block; }
+    #end-action { font-size: $action_px; font-weight: 600; color: var(--field-ink); max-width: $text_max; text-align: center; line-height: 1.15; }
+    #end-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; height: $btn_h; padding: 0 $btn_pad; border-radius: $btn_r; background: var(--btn-bg); color: var(--btn-ink); font-size: $btn_px; font-weight: 700; letter-spacing: -0.01em; box-shadow: 0 30px 60px -24px rgb(0 0 0 / 0.45); }
+    #end-cursor { position: absolute; left: 50%; top: 50%; width: $cur_w; height: auto; }
+  </style>
+  <div id="root" data-composition-id="end" data-width="$W" data-height="$H">
+    <div id="end-flood"></div>
+    <div id="end-band"></div>
+    <div id="end-cam">
+      <div id="end-title">$letters</div>
+      <div id="end-action">$action</div>
+      <div id="end-btn">$button</div>
+    </div>
+    <svg id="end-cursor" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M2 2 L2 26 L8.5 19.5 L13 30 L17 28.2 L12.6 18 L21.5 18 Z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#end-flood", { clipPath: "circle(0% at 50% 110%)" }, { clipPath: "circle(150% at 50% 110%)", duration: 0.55, ease: "power2.inOut" }, 0);
+    tl.fromTo("#end-band", { yPercent: 100 }, { yPercent: 0, duration: 0.6, ease: "expo.out" }, 0.25);
+    tl.fromTo("#end-title", { opacity: 0 }, { opacity: 1, duration: 0.05 }, 0.12);
+    tl.fromTo("#end-title .end-li", { yPercent: 110 }, { yPercent: 0, duration: 0.7, ease: "expo.out", stagger: 0.045 }, 0.12);
+    tl.fromTo("#end-cam", { scale: 1.06 }, { scale: 1, duration: 1.2, ease: "power3.out" }, 0);
+    tl.fromTo("#end-action", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.35, ease: "power2.out" }, 0.7);
+    tl.fromTo("#end-btn", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.55, ease: "back.out(1.7)" }, 0.95);
+    tl.fromTo("#end-cursor", { x: $cur_x0, y: $cur_y0, opacity: 0 }, { x: $cur_x1, y: $cur_y1, opacity: 1, duration: 0.7, ease: "power3.out" }, 1.25);
+    tl.to(["#end-btn", "#end-cursor"], { scale: 0.93, duration: 0.08, ease: "power2.in" }, $press);
+    tl.to(["#end-btn", "#end-cursor"], { scale: 1, duration: 0.35, ease: "back.out(2.2)" }, $press_up);
+    tl.to("#end-btn", { backgroundColor: "var(--field-ink)", color: "var(--field)", duration: 0.12 }, $press);
+    window.__timelines["end"] = tl;
+  </script>
+</template>

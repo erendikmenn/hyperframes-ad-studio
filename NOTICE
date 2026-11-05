@@ -1,0 +1,14 @@
+HyperFrames Ad Studio
+Copyright 2026 Mehmet Eren Dikmen
+
+This project includes files derived from HyperFrames
+(https://github.com/heygen-com/hyperframes), Copyright HeyGen, licensed under
+the Apache License, Version 2.0:
+
+  library/blueprints/
+  library/TRANSITION-REGISTRY.md
+  library/blocks/cta-lockup.html
+  library/blocks/logo-brand-close.html
+
+library/showcase.json only lists links to videos published on the HyperFrames
+site. Those videos are not included here and belong to their owners.
